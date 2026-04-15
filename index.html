@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LE System | L-Bridge Connector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap');
+        body { font-family: 'Pretendard', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col p-4">
+        <header class="bg-indigo-700 text-white p-5 rounded-t-2xl shadow-lg">
+            <div class="flex justify-between items-center">
+                <h1 class="text-xl font-bold italic">LE SYSTEM</h1>
+                <span class="bg-indigo-500 text-[10px] px-2 py-1 rounded-full uppercase tracking-wider">AI Gatekeeper</span>
+            </div>
+            <p class="text-indigo-100 text-xs mt-1">Grammar Inside Starter 과정</p>
+        </header>
+
+        <main class="bg-white flex-grow shadow-md rounded-b-2xl p-6 transition-all" id="main-content">
+            <div id="step-login" class="space-y-6">
+                <div class="text-center py-4">
+                    <div class="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i data-lucide="user-check" class="text-indigo-600"></i>
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-800">인강 학습 인증</h2>
+                    <p class="text-sm text-slate-500">이름과 강의 차시를 선택하세요.</p>
+                </div>
+                
+                <div class="space-y-4">
+                    <input type="text" id="student-name" placeholder="학생 성함" class="w-full border-2 border-slate-100 p-3 rounded-xl focus:border-indigo-500 outline-none transition">
+                    <select id="lecture-select" class="w-full border-2 border-slate-100 p-3 rounded-xl bg-white outline-none">
+                        <option value="">강의 선택</option>
+                        <option value="1">Unit 1-1: be동사의 현재형 (am/are/is)</option>
+                        <option value="2">Unit 1-2: be동사의 부정문과 의문문</option>
+                    </select>
+                </div>
+                <button onclick="startQuiz()" class="w-full bg-indigo-600 hover:bg-indigo-800 text-white font-bold py-4 rounded-xl shadow-indigo-200 shadow-lg transition-all active:scale-95">
+                    검증 시작하기
+                </button>
+            </div>
+
+            <div id="step-quiz" class="hidden space-y-6">
+                <div id="quiz-container" class="space-y-6">
+                    </div>
+                <button onclick="calculateResult()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-xl shadow-lg transition-all">
+                    답안 제출 (Gate Check)
+                </button>
+            </div>
+
+            <div id="step-result" class="hidden text-center space-y-6 py-10">
+                <div id="result-icon"></div>
+                <h2 id="result-title" class="text-3xl font-black"></h2>
+                <p id="result-msg" class="text-slate-600"></p>
+                
+                <div id="instructor-report" class="text-left bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Instructor Feedback (E-Step)</p>
+                    <p id="report-text" class="text-sm text-slate-700"></p>
+                </div>
+                
+                <button onclick="location.reload()" class="w-full border-2 border-slate-200 text-slate-500 py-3 rounded-xl text-sm font-semibold">
+                    다시 시작
+                </button>
+            </div>
+        </main>
+
+        <footer class="mt-4 text-center">
+            <p class="text-[10px] text-slate-400">© 2024 LE Academy System. Connected to Claude AI Engine.</p>
+        </footer>
+    </div>
+
+    <script>
+        // Lucide 아이콘 초기화
+        lucide.createIcons();
+
+        let currentLecture = null;
+        const lectureDB = {
+            "1": {
+                title: "be동사의 현재형",
+                questions: [
+                    { q: "다음 빈칸에 알맞은 be동사를 쓰시오. <br>'I (____) a student.'", ans: "am" },
+                    { q: "주어가 'The books'일 때 어울리는 be동사는? (am/are/is)", ans: "are" },
+                    { q: "[인강 핵심역질문] 주어가 3인칭 단수(He, She, It)일 때 be동사는 무엇으로 변하나요?", ans: "is" }
+                ],
+                report: "be동사의 수 일치를 확인했습니다. 학생에게 'My family'가 왜 단수취급인지(또는 복수취급인지) 예외 질문을 하나 더 던져보고 도장을 찍어주세요."
+            }
+        };
+
+        function startQuiz() {
+            const name = document.getElementById('student-name').value;
+            const lectureId = document.getElementById('lecture-select').value;
+            
+            if(!name || !lectureId) {
+                alert("이름과 강의를 선택해주세요!");
+                return;
+            }
+
+            currentLecture = lectureDB[lectureId];
+            document.getElementById('step-login').classList.add('hidden');
+            document.getElementById('step-quiz').classList.remove('hidden');
+            
+            const container = document.getElementById('quiz-container');
+            container.innerHTML = currentLecture.questions.map((item, idx) => `
+                <div class="space-y-2 border-b border-slate-50 pb-4">
+                    <p class="text-sm font-bold text-slate-700 font-semibold">Q${idx+1}. ${item.q}</p>
+                    <input type="text" class="quiz-ans w-full border border-slate-200 p-2 rounded-lg outline-none focus:border-indigo-400" placeholder="정답 입력">
+                </div>
+            `).join('');
+        }
+
+        function calculateResult() {
+            const inputs = document.querySelectorAll('.quiz-ans');
+            let correct = 0;
+            
+            inputs.forEach((input, idx) => {
+                if(input.value.trim().toLowerCase() === currentLecture.questions[idx].ans.toLowerCase() || 
+                   (idx === 2 && input.value.length > 1)) { // 주관식은 내용 포함시 정답
+                    correct++;
+                }
+            });
+
+            const score = Math.round((correct / currentLecture.questions.length) * 100);
+            showResult(score);
+        }
+
+        function showResult(score) {
+            document.getElementById('step-quiz').classList.add('hidden');
+            document.getElementById('step-result').classList.remove('hidden');
+            
+            const iconDiv = document.getElementById('result-icon');
+            const title = document.getElementById('result-title');
+            const msg = document.getElementById('result-msg');
+            const report = document.getElementById('report-text');
+
+            if(score >= 70) {
+                iconDiv.innerHTML = '<div class="bg-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto text-emerald-500"><i data-lucide="check-circle-2" size="48"></i></div>';
+                title.innerText = "PASS";
+                title.className = "text-4xl font-black text-emerald-500";
+                msg.innerHTML = `검증 점수: <b>${score}점</b><br>강사님께 리포트를 보여주고 도장을 받으세요.`;
+                report.innerText = currentLecture.report;
+            } else {
+                iconDiv.innerHTML = '<div class="bg-red-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto text-red-500"><i data-lucide="alert-octagon" size="48"></i></div>';
+                title.innerText = "FAIL";
+                title.className = "text-4xl font-black text-red-500";
+                msg.innerHTML = `검증 점수: <b>${score}점</b><br>인강 내용을 충분히 이해하지 못했습니다.<br>부족한 부분을 다시 시청하세요.`;
+                report.innerText = "재시험이 필요합니다. 인강 노트를 다시 점검하게 하세요.";
+            }
+            lucide.createIcons();
+        }
+    </script>
+</body>
+</html>
