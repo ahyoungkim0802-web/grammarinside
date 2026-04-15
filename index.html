@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LE LMS | Assignment System</title>
+    <title>LE LMS | Full Control System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, orderBy, onSnapshot, where } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAb1ntJhctRZBJ2j2Qn5AVsMayCShhzVQM",
@@ -24,29 +24,25 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // --- 문제 데이터 (원장님이 직접 넣는 곳) ---
         const quizData = {
-            "grammar_inside_1": [
-                { q: "I (am/are/is) a teacher.", a: "am" },
-                { q: "You (am/are/is) smart.", a: "are" }
-            ],
-            "grammar_inside_2": [
-                { q: "He (have/has) a cat.", a: "has" },
-                { q: "They (have/has) a dog.", a: "have" }
-            ]
+            "grammar_inside_1": [{ q: "I (am/are/is) a student.", a: "am" }, { q: "He (am/are/is) tall.", a: "is" }],
+            "grammar_inside_2": [{ q: "You (am/are/is) smart.", a: "are" }, { q: "They (am/are/is) fast.", a: "are" }]
         };
 
         let currentPassScore = 80;
         let studentName = "";
+        let currentBook = "";
+        let currentUnit = "";
 
         window.onload = async () => {
             const docRef = doc(db, "config", "settings");
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
+                currentPassScore = docSnap.data().passScore || 80;
                 document.querySelectorAll('.academy-name-display').forEach(el => el.innerText = docSnap.data().academyName);
             }
-            lucide.createIcons();
             loadResults();
+            lucide.createIcons();
         };
 
         window.showView = (viewId) => {
@@ -54,120 +50,126 @@
             document.getElementById(viewId).classList.remove('hidden');
         };
 
-        // 1. 로그인 시 지정된 시험이 있는지 체크
         window.handleLogin = async () => {
             const id = document.getElementById('input-id').value.trim();
             const pw = document.getElementById('input-pw').value;
             if (id === 'admin' && pw === '1234') showView('view-admin');
             else if (id) {
                 studentName = id;
-                await checkAssignment(id);
-            } else alert("이름을 입력하세요.");
+                const docRef = doc(db, "assignments", studentName);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    currentBook = docSnap.data().book;
+                    currentUnit = docSnap.data().unit;
+                    document.getElementById('assigned-info').innerText = `${currentBook} - Unit ${currentUnit}`;
+                    showView('view-student-ready');
+                } else { alert("지정된 시험이 없습니다."); }
+            }
         };
 
-        // 2. 학생에게 지정된 시험 불러오기
-        async function checkAssignment(name) {
-            const docRef = doc(db, "assignments", name);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                document.getElementById('assigned-info').innerText = `${data.book} - Unit ${data.unit}`;
-                document.getElementById('start-test-btn').onclick = () => startTest(data.book, data.unit);
-                showView('view-student-ready');
-            } else {
-                alert("선생님이 지정한 시험이 없습니다. 선생님께 문의하세요!");
-            }
-        }
-
-        // 3. 관리자: 학생에게 시험 지정하기
         window.assignTask = async () => {
             const sName = document.getElementById('assign-name').value.trim();
             const book = document.getElementById('assign-book').value;
             const unit = document.getElementById('assign-unit').value;
             if(!sName) return alert("학생 이름을 입력하세요.");
-
-            try {
-                await setDoc(doc(db, "assignments", sName), {
-                    book: book,
-                    unit: unit,
-                    assignedAt: new Date()
-                });
-                alert(`${sName} 학생에게 ${book} Unit ${unit} 시험을 지정했습니다.`);
-            } catch (e) { alert("지정 실패!"); }
+            await setDoc(doc(db, "assignments", sName), { book, unit, assignedAt: new Date() });
+            alert(`${sName} 학생에게 시험을 지정했습니다.`);
         };
 
-        // 4. 테스트 시작
-        window.startTest = (book, unit) => {
-            const questions = quizData[`${book}_${unit}`];
-            if (!questions) return alert("문제가 등록되지 않은 유닛입니다.");
-
+        window.startTest = () => {
+            const questions = quizData[`${currentBook}_${currentUnit}`];
             document.getElementById('quiz-flow').innerHTML = questions.map((item, idx) => `
-                <div class="bg-white p-6 rounded-3xl shadow-sm border mb-4">
-                    <p class="font-bold mb-2">Q${idx+1}. ${item.q}</p>
-                    <input type="text" class="student-input w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" placeholder="정답">
+                <div class="bg-white p-6 rounded-3xl shadow-sm border mb-4 text-left">
+                    <p class="font-bold mb-2 text-slate-700">Q${idx+1}. ${item.q}</p>
+                    <input type="text" class="student-input w-full p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" placeholder="정답 입력">
                 </div>
             `).join('');
             showView('view-quiz-running');
         };
 
-        // 5. 결과 저장 및 관리자 리스트 생략 (이전 코드와 동일하게 유지)
-        // [중략: submitTest 및 loadResults 함수는 이전과 동일]
+        window.submitTest = async () => {
+            const correctData = quizData[`${currentBook}_${currentUnit}`];
+            const inputs = document.querySelectorAll('.student-input');
+            let correctCount = 0;
+            inputs.forEach((input, idx) => {
+                if(input.value.trim().toLowerCase() === correctData[idx].a.toLowerCase()) correctCount++;
+            });
+            const score = Math.round((correctCount / correctData.length) * 100);
+            const status = score >= currentPassScore ? "PASS" : "FAIL";
+
+            await addDoc(collection(db, "results"), {
+                name: studentName, book: currentBook, unit: currentUnit, score, status, timestamp: new Date()
+            });
+
+            document.getElementById('res-score').innerText = `${score}점`;
+            document.getElementById('res-status').innerText = status;
+            document.getElementById('res-status').className = status === "PASS" ? "text-5xl font-black text-emerald-500" : "text-5xl font-black text-red-500";
+            showView('view-result');
+        };
+
+        function loadResults() {
+            const q = query(collection(db, "results"), orderBy("timestamp", "desc"));
+            onSnapshot(q, (snapshot) => {
+                const list = document.getElementById('admin-result-list');
+                if(!list) return;
+                list.innerHTML = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    const color = data.status === "PASS" ? "text-emerald-500" : "text-red-500";
+                    return `<tr class="border-b"><td class="p-4 font-bold">${data.name}</td><td class="p-4">${data.book}/U${data.unit}</td><td class="p-4 font-bold">${data.score}</td><td class="p-4 font-black ${color}">${data.status}</td></tr>`;
+                }).join('');
+            });
+        }
     </script>
 </head>
-<body class="bg-slate-50">
-    <div class="max-w-4xl mx-auto min-h-screen p-4 flex flex-col justify-center">
+<body class="bg-slate-50 text-slate-900">
+    <div class="max-w-4xl mx-auto min-h-screen p-4 flex flex-col justify-center text-center">
 
         <div id="view-login" class="view-step max-w-sm mx-auto w-full space-y-8">
-            <h1 class="academy-name-display text-3xl font-black text-center italic">EPL영어학원</h1>
-            <div class="bg-white p-8 rounded-[2.5rem] shadow-xl space-y-4">
-                <input id="input-id" class="w-full p-4 bg-slate-50 rounded-2xl outline-none" placeholder="이름 (학생이름)">
-                <input id="input-pw" type="password" class="w-full p-4 bg-slate-50 rounded-2xl outline-none" placeholder="비밀번호">
-                <button onclick="handleLogin()" class="w-full bg-indigo-600 text-white p-4 rounded-2xl font-black">시스템 입장</button>
+            <h1 class="academy-name-display text-4xl font-black italic">LE 영어학원</h1>
+            <div class="bg-white p-10 rounded-[2.5rem] shadow-2xl space-y-4 border border-white">
+                <input id="input-id" class="w-full p-4 bg-slate-50 rounded-2xl outline-none border focus:border-indigo-500" placeholder="학생 성함 (관리자: admin)">
+                <input id="input-pw" type="password" class="w-full p-4 bg-slate-50 rounded-2xl outline-none border focus:border-indigo-500" placeholder="비밀번호">
+                <button onclick="handleLogin()" class="w-full bg-indigo-600 text-white p-4 rounded-2xl font-black shadow-xl">시스템 접속</button>
             </div>
         </div>
 
-        <div id="view-admin" class="view-step hidden w-full space-y-6">
-            <h2 class="text-2xl font-black italic">ADMIN CONTROL</h2>
-            <div class="grid md:grid-cols-3 gap-6 text-left">
-                <div class="bg-white p-6 rounded-[2rem] shadow-xl border-2 border-indigo-50 space-y-4">
-                    <h3 class="font-black text-indigo-600 text-sm uppercase tracking-widest">시험 지정 (Assign)</h3>
-                    <input id="assign-name" class="w-full p-3 bg-slate-50 rounded-xl text-sm" placeholder="학생 이름">
-                    <select id="assign-book" class="w-full p-3 bg-slate-50 rounded-xl text-sm">
-                        <option value="grammar_inside">Grammar Inside</option>
-                    </select>
-                    <select id="assign-unit" class="w-full p-3 bg-slate-50 rounded-xl text-sm">
-                        <option value="1">Unit 1</option>
-                        <option value="2">Unit 2</option>
-                    </select>
-                    <button onclick="assignTask()" class="w-full bg-indigo-600 text-white p-3 rounded-xl font-bold transition hover:bg-indigo-700">지정하기</button>
+        <div id="view-admin" class="view-step hidden w-full space-y-8">
+            <div class="flex justify-between items-center"><h2 class="text-3xl font-black italic">ADMIN CONTROL</h2><button onclick="location.reload()" class="font-bold text-slate-400">LOGOUT</button></div>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl border-2 border-indigo-50 space-y-4 text-left">
+                    <h3 class="font-black text-indigo-600 uppercase text-sm tracking-widest mb-4">시험 지정 (ASSIGN)</h3>
+                    <input id="assign-name" class="w-full p-4 bg-slate-50 rounded-2xl outline-none" placeholder="학생 이름">
+                    <select id="assign-book" class="w-full p-4 bg-slate-50 rounded-2xl outline-none"><option value="grammar_inside">Grammar Inside</option></select>
+                    <select id="assign-unit" class="w-full p-4 bg-slate-50 rounded-2xl outline-none"><option value="1">Unit 1</option><option value="2">Unit 2</option></select>
+                    <button onclick="assignTask()" class="w-full bg-indigo-600 text-white p-4 rounded-2xl font-black mt-4 shadow-lg shadow-indigo-100">지정하기</button>
                 </div>
-                <div class="md:col-span-2 bg-white rounded-[2rem] shadow-xl overflow-hidden">
-                    <div class="p-4 bg-slate-900 text-white text-sm font-bold">실시간 시험 기록</div>
-                    <div class="max-h-[400px] overflow-y-auto">
-                        <table class="w-full text-xs text-left">
-                            <thead class="bg-slate-100 uppercase font-bold">
-                                <tr><th class="p-3">이름</th><th class="p-3">교재</th><th class="p-3">점수</th><th class="p-3">결과</th></tr>
-                            </thead>
-                            <tbody id="admin-result-list"></tbody>
-                        </table>
+                <div class="md:col-span-2 bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100">
+                    <div class="p-5 bg-slate-900 text-white font-bold">실시간 시험 기록</div>
+                    <div class="max-h-[450px] overflow-y-auto">
+                        <table class="w-full text-sm text-left"><thead class="bg-slate-50 text-slate-400 font-bold uppercase text-[10px]"><tr><th class="p-4">이름</th><th class="p-4">교재/U</th><th class="p-4">점수</th><th class="p-4">결과</th></tr></thead>
+                        <tbody id="admin-result-list"></tbody></table>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div id="view-student-ready" class="view-step hidden max-w-sm mx-auto w-full text-center space-y-8">
-            <div class="bg-white p-10 rounded-[3rem] shadow-2xl space-y-6">
-                <div class="bg-indigo-50 p-4 rounded-2xl inline-block text-indigo-600 font-black mb-2 italic">TODAY'S TASK</div>
-                <h2 id="assigned-info" class="text-2xl font-black text-slate-800">지정된 시험이 없습니다.</h2>
-                <p class="text-slate-400 text-sm font-bold uppercase tracking-widest">선생님이 지정한 시험을 시작하세요.</p>
-                <button id="start-test-btn" class="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black text-xl shadow-xl shadow-indigo-100">테스트 시작</button>
+        <div id="view-student-ready" class="view-step hidden max-w-sm mx-auto w-full space-y-8">
+            <div class="bg-white p-12 rounded-[3rem] shadow-2xl space-y-6">
+                <div class="text-indigo-600 font-black tracking-widest bg-indigo-50 inline-block px-4 py-2 rounded-xl mb-2 italic">TODAY'S TASK</div>
+                <h2 id="assigned-info" class="text-2xl font-black text-slate-800 tracking-tight">지정된 시험 없음</h2>
+                <button onclick="startTest()" class="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black text-xl shadow-xl">테스트 시작</button>
             </div>
-            <button onclick="location.reload()" class="text-slate-400 font-bold">로그아웃</button>
         </div>
 
-        <div id="view-quiz-running" class="view-step hidden w-full max-w-md mx-auto space-y-4">
-            <div id="quiz-flow"></div>
-            <button onclick="submitTest()" class="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black shadow-lg">제출하기</button>
+        <div id="view-quiz-running" class="view-step hidden w-full max-w-xl mx-auto space-y-6">
+            <div id="quiz-flow" class="space-y-4"></div>
+            <button onclick="submitTest()" class="w-full bg-indigo-600 text-white p-6 rounded-[2rem] font-black text-xl shadow-2xl">답안 제출하기</button>
+        </div>
+
+        <div id="view-result" class="view-step hidden max-w-sm mx-auto w-full bg-white p-12 rounded-[3rem] shadow-2xl space-y-6">
+            <h2 id="res-score" class="text-7xl font-black tracking-tighter text-slate-800">0점</h2>
+            <h3 id="res-status" class="text-4xl font-black uppercase tracking-widest"></h3>
+            <button onclick="location.reload()" class="w-full bg-slate-100 p-4 rounded-2xl font-bold text-slate-400 mt-4">확인</button>
         </div>
 
     </div>
