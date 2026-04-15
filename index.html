@@ -1,156 +1,123 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LE System | L-Bridge Connector</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap');
-        body { font-family: 'Pretendard', sans-serif; }
-    </style>
-</head>
-<body class="bg-slate-50">
-    <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col p-4">
-        <header class="bg-indigo-700 text-white p-5 rounded-t-2xl shadow-lg">
-            <div class="flex justify-between items-center">
-                <h1 class="text-xl font-bold italic">LE SYSTEM</h1>
-                <span class="bg-indigo-500 text-[10px] px-2 py-1 rounded-full uppercase tracking-wider">AI Gatekeeper</span>
-            </div>
-            <p class="text-indigo-100 text-xs mt-1">Grammar Inside Starter 과정</p>
-        </header>
+import React, { useState, useEffect } from 'react';
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 
-        <main class="bg-white flex-grow shadow-md rounded-b-2xl p-6 transition-all" id="main-content">
-            <div id="step-login" class="space-y-6">
-                <div class="text-center py-4">
-                    <div class="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <i data-lucide="user-check" class="text-indigo-600"></i>
-                    </div>
-                    <h2 class="text-xl font-bold text-slate-800">인강 학습 인증</h2>
-                    <p class="text-sm text-slate-500">이름과 강의 차시를 선택하세요.</p>
-                </div>
-                
-                <div class="space-y-4">
-                    <input type="text" id="student-name" placeholder="학생 성함" class="w-full border-2 border-slate-100 p-3 rounded-xl focus:border-indigo-500 outline-none transition">
-                    <select id="lecture-select" class="w-full border-2 border-slate-100 p-3 rounded-xl bg-white outline-none">
-                        <option value="">강의 선택</option>
-                        <option value="1">Unit 1-1: be동사의 현재형 (am/are/is)</option>
-                        <option value="2">Unit 1-2: be동사의 부정문과 의문문</option>
-                    </select>
-                </div>
-                <button onclick="startQuiz()" class="w-full bg-indigo-600 hover:bg-indigo-800 text-white font-bold py-4 rounded-xl shadow-indigo-200 shadow-lg transition-all active:scale-95">
-                    검증 시작하기
-                </button>
-            </div>
+// 1. 파이어베이스 설정 (원장님 프로젝트 설정값 입력)
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_ID",
+  appId: "YOUR_APP_ID"
+};
 
-            <div id="step-quiz" class="hidden space-y-6">
-                <div id="quiz-container" class="space-y-6">
-                    </div>
-                <button onclick="calculateResult()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-xl shadow-lg transition-all">
-                    답안 제출 (Gate Check)
-                </button>
-            </div>
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
 
-            <div id="step-result" class="hidden text-center space-y-6 py-10">
-                <div id="result-icon"></div>
-                <h2 id="result-title" class="text-3xl font-black"></h2>
-                <p id="result-msg" class="text-slate-600"></p>
-                
-                <div id="instructor-report" class="text-left bg-slate-50 border border-slate-200 p-4 rounded-xl">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Instructor Feedback (E-Step)</p>
-                    <p id="report-text" class="text-sm text-slate-700"></p>
-                </div>
-                
-                <button onclick="location.reload()" class="w-full border-2 border-slate-200 text-slate-500 py-3 rounded-xl text-sm font-semibold">
-                    다시 시작
-                </button>
-            </div>
-        </main>
+const LESystem = () => {
+  const [user, setUser] = useState(null); // 로그인 유저 정보
+  const [view, setView] = useState('login'); // login, student_main, admin_main, quiz
+  const [settings, setSettings] = useState({ academyName: '', passScore: 80, qCount: 20 });
+  const [loginInfo, setLoginInfo] = useState({ id: '', pw: '' });
 
-        <footer class="mt-4 text-center">
-            <p class="text-[10px] text-slate-400">© 2024 LE Academy System. Connected to Claude AI Engine.</p>
-        </footer>
+  // 2. 초기 설정 불러오기
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const docRef = doc(db, "config", "settings");
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) setSettings(docSnap.data());
+    };
+    fetchSettings();
+  }, []);
+
+  // 3. 로그인 로직 (학생/관리자 구분)
+  const handleLogin = async () => {
+    // 실제 운영시에는 Firebase Auth의 이메일 로그인 방식을 사용합니다.
+    // 예: admin@academy.com / pw1234
+    try {
+      if (loginInfo.id === 'admin' && loginInfo.pw === '1234') {
+        setUser({ role: 'admin', name: '관리자' });
+        setView('admin_main');
+      } else {
+        setUser({ role: 'student', name: loginInfo.id });
+        setView('student_main');
+      }
+    } catch (e) { alert("로그인 정보가 틀립니다."); }
+  };
+
+  // --- 관리자 페이지 컴포넌트 ---
+  const AdminPage = () => (
+    <div className="p-6 space-y-6">
+      <h2 className="text-2xl font-bold">🛠 관리자 설정</h2>
+      <div className="bg-white p-4 rounded-xl shadow space-y-4">
+        <div>
+          <label>학원 이름</label>
+          <input className="w-full border p-2 rounded" value={settings.academyName} 
+            onChange={(e) => setSettings({...settings, academyName: e.target.value})} />
+        </div>
+        <div className="flex gap-4">
+          <div>
+            <label>합격 커트라인 (점)</label>
+            <input type="number" className="w-full border p-2 rounded" value={settings.passScore} 
+              onChange={(e) => setSettings({...settings, passScore: e.target.value})} />
+          </div>
+          <div>
+            <label>출제 문제수</label>
+            <input type="number" className="w-full border p-2 rounded" value={settings.qCount} 
+              onChange={(e) => setSettings({...settings, qCount: e.target.value})} />
+          </div>
+        </div>
+        <button onClick={() => updateDoc(doc(db, "config", "settings"), settings)} 
+          className="bg-blue-600 text-white px-4 py-2 rounded">설정 저장</button>
+      </div>
+
+      <div className="bg-white p-4 rounded-xl shadow">
+        <h3 className="font-bold mb-2">교재 PDF 업로드 및 문제생성</h3>
+        <input type="file" accept="application/pdf" className="mb-2" />
+        <p className="text-xs text-gray-400">*PDF 업로드 시 Claude AI가 지문을 분석하여 {settings.qCount}문제를 자동 생성합니다.</p>
+      </div>
     </div>
+  );
 
-    <script>
-        // Lucide 아이콘 초기화
-        lucide.createIcons();
+  // --- 학생 퀴즈 페이지 컴포넌트 ---
+  const QuizPage = () => {
+    const [currentIdx, setCurrentIdx] = useState(0);
+    const [score, setScore] = useState(0);
 
-        let currentLecture = null;
-        const lectureDB = {
-            "1": {
-                title: "be동사의 현재형",
-                questions: [
-                    { q: "다음 빈칸에 알맞은 be동사를 쓰시오. <br>'I (____) a student.'", ans: "am" },
-                    { q: "주어가 'The books'일 때 어울리는 be동사는? (am/are/is)", ans: "are" },
-                    { q: "[인강 핵심역질문] 주어가 3인칭 단수(He, She, It)일 때 be동사는 무엇으로 변하나요?", ans: "is" }
-                ],
-                report: "be동사의 수 일치를 확인했습니다. 학생에게 'My family'가 왜 단수취급인지(또는 복수취급인지) 예외 질문을 하나 더 던져보고 도장을 찍어주세요."
-            }
-        };
+    return (
+      <div className="p-6">
+        <div className="mb-4 flex justify-between">
+          <span>문제 {currentIdx + 1} / {settings.qCount}</span>
+          <span className="font-bold text-blue-600">{settings.academyName}</span>
+        </div>
+        <div className="bg-white p-6 rounded-2xl shadow-lg h-64 flex items-center justify-center text-xl font-bold border-2 border-blue-50">
+          {/* AI가 생성한 문제가 여기에 렌더링됨 */}
+          [질문 예시] 다음 문장의 빈칸을 채우시오...
+        </div>
+        {/* 선택지 및 제출 로직 */}
+      </div>
+    );
+  };
 
-        function startQuiz() {
-            const name = document.getElementById('student-name').value;
-            const lectureId = document.getElementById('lecture-select').value;
-            
-            if(!name || !lectureId) {
-                alert("이름과 강의를 선택해주세요!");
-                return;
-            }
+  return (
+    <div className="max-w-md mx-auto min-h-screen bg-slate-50 font-pretendard">
+      {view === 'login' && (
+        <div className="p-10 space-y-8">
+          <h1 className="text-3xl font-black text-center text-blue-800">{settings.academyName || "학원이름을 설정하세요"}</h1>
+          <div className="space-y-4">
+            <input className="w-full p-4 border rounded-2xl" placeholder="아이디" onChange={e => setLoginInfo({...loginInfo, id: e.target.value})} />
+            <input className="w-full p-4 border rounded-2xl" type="password" placeholder="비밀번호" onChange={e => setLoginInfo({...loginInfo, pw: e.target.value})} />
+            <button onClick={handleLogin} className="w-full bg-blue-600 text-white p-4 rounded-2xl font-bold">시스템 로그인</button>
+          </div>
+        </div>
+      )}
+      {view === 'admin_main' && <AdminPage />}
+      {view === 'quiz' && <QuizPage />}
+    </div>
+  );
+};
 
-            currentLecture = lectureDB[lectureId];
-            document.getElementById('step-login').classList.add('hidden');
-            document.getElementById('step-quiz').classList.remove('hidden');
-            
-            const container = document.getElementById('quiz-container');
-            container.innerHTML = currentLecture.questions.map((item, idx) => `
-                <div class="space-y-2 border-b border-slate-50 pb-4">
-                    <p class="text-sm font-bold text-slate-700 font-semibold">Q${idx+1}. ${item.q}</p>
-                    <input type="text" class="quiz-ans w-full border border-slate-200 p-2 rounded-lg outline-none focus:border-indigo-400" placeholder="정답 입력">
-                </div>
-            `).join('');
-        }
-
-        function calculateResult() {
-            const inputs = document.querySelectorAll('.quiz-ans');
-            let correct = 0;
-            
-            inputs.forEach((input, idx) => {
-                if(input.value.trim().toLowerCase() === currentLecture.questions[idx].ans.toLowerCase() || 
-                   (idx === 2 && input.value.length > 1)) { // 주관식은 내용 포함시 정답
-                    correct++;
-                }
-            });
-
-            const score = Math.round((correct / currentLecture.questions.length) * 100);
-            showResult(score);
-        }
-
-        function showResult(score) {
-            document.getElementById('step-quiz').classList.add('hidden');
-            document.getElementById('step-result').classList.remove('hidden');
-            
-            const iconDiv = document.getElementById('result-icon');
-            const title = document.getElementById('result-title');
-            const msg = document.getElementById('result-msg');
-            const report = document.getElementById('report-text');
-
-            if(score >= 70) {
-                iconDiv.innerHTML = '<div class="bg-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto text-emerald-500"><i data-lucide="check-circle-2" size="48"></i></div>';
-                title.innerText = "PASS";
-                title.className = "text-4xl font-black text-emerald-500";
-                msg.innerHTML = `검증 점수: <b>${score}점</b><br>강사님께 리포트를 보여주고 도장을 받으세요.`;
-                report.innerText = currentLecture.report;
-            } else {
-                iconDiv.innerHTML = '<div class="bg-red-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto text-red-500"><i data-lucide="alert-octagon" size="48"></i></div>';
-                title.innerText = "FAIL";
-                title.className = "text-4xl font-black text-red-500";
-                msg.innerHTML = `검증 점수: <b>${score}점</b><br>인강 내용을 충분히 이해하지 못했습니다.<br>부족한 부분을 다시 시청하세요.`;
-                report.innerText = "재시험이 필요합니다. 인강 노트를 다시 점검하게 하세요.";
-            }
-            lucide.createIcons();
-        }
-    </script>
-</body>
-</html>
+export default LESystem;
