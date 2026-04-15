@@ -1,123 +1,112 @@
-import React, { useState, useEffect } from 'react';
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LE LMS - Smart Gateway</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
 
-// 1. 파이어베이스 설정 (원장님 프로젝트 설정값 입력)
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_ID",
-  appId: "YOUR_APP_ID"
-};
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
+        // 1. 여기에 원장님의 파이어베이스 설정값을 붙여넣으세요!
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_ID",
+            appId: "YOUR_APP_ID"
+        };
 
-const LESystem = () => {
-  const [user, setUser] = useState(null); // 로그인 유저 정보
-  const [view, setView] = useState('login'); // login, student_main, admin_main, quiz
-  const [settings, setSettings] = useState({ academyName: '', passScore: 80, qCount: 20 });
-  const [loginInfo, setLoginInfo] = useState({ id: '', pw: '' });
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
-  // 2. 초기 설정 불러오기
-  useEffect(() => {
-    const fetchSettings = async () => {
-      const docRef = doc(db, "config", "settings");
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) setSettings(docSnap.data());
-    };
-    fetchSettings();
-  }, []);
+        // React 컴포넌트 시작
+        const { useState, useEffect } = React;
 
-  // 3. 로그인 로직 (학생/관리자 구분)
-  const handleLogin = async () => {
-    // 실제 운영시에는 Firebase Auth의 이메일 로그인 방식을 사용합니다.
-    // 예: admin@academy.com / pw1234
-    try {
-      if (loginInfo.id === 'admin' && loginInfo.pw === '1234') {
-        setUser({ role: 'admin', name: '관리자' });
-        setView('admin_main');
-      } else {
-        setUser({ role: 'student', name: loginInfo.id });
-        setView('student_main');
-      }
-    } catch (e) { alert("로그인 정보가 틀립니다."); }
-  };
+        const LESystem = () => {
+            const [view, setView] = useState('login'); // login, admin, student, quiz
+            const [settings, setSettings] = useState({ academyName: 'LE 영어학원', passScore: 80, qCount: 20 });
+            const [login, setLogin] = useState({ id: '', pw: '' });
+            const [loading, setLoading] = useState(false);
 
-  // --- 관리자 페이지 컴포넌트 ---
-  const AdminPage = () => (
-    <div className="p-6 space-y-6">
-      <h2 className="text-2xl font-bold">🛠 관리자 설정</h2>
-      <div className="bg-white p-4 rounded-xl shadow space-y-4">
-        <div>
-          <label>학원 이름</label>
-          <input className="w-full border p-2 rounded" value={settings.academyName} 
-            onChange={(e) => setSettings({...settings, academyName: e.target.value})} />
-        </div>
-        <div className="flex gap-4">
-          <div>
-            <label>합격 커트라인 (점)</label>
-            <input type="number" className="w-full border p-2 rounded" value={settings.passScore} 
-              onChange={(e) => setSettings({...settings, passScore: e.target.value})} />
-          </div>
-          <div>
-            <label>출제 문제수</label>
-            <input type="number" className="w-full border p-2 rounded" value={settings.qCount} 
-              onChange={(e) => setSettings({...settings, qCount: e.target.value})} />
-          </div>
-        </div>
-        <button onClick={() => updateDoc(doc(db, "config", "settings"), settings)} 
-          className="bg-blue-600 text-white px-4 py-2 rounded">설정 저장</button>
-      </div>
+            // 초기 설정 로드
+            useEffect(() => {
+                const loadSettings = async () => {
+                    const docRef = doc(db, "config", "settings");
+                    const snap = await getDoc(docRef);
+                    if (snap.exists()) setSettings(snap.data());
+                };
+                loadSettings();
+            }, []);
 
-      <div className="bg-white p-4 rounded-xl shadow">
-        <h3 className="font-bold mb-2">교재 PDF 업로드 및 문제생성</h3>
-        <input type="file" accept="application/pdf" className="mb-2" />
-        <p className="text-xs text-gray-400">*PDF 업로드 시 Claude AI가 지문을 분석하여 {settings.qCount}문제를 자동 생성합니다.</p>
-      </div>
-    </div>
-  );
+            const handleLogin = () => {
+                if (login.id === 'admin' && login.pw === '1234') setView('admin');
+                else if (login.id && login.pw) setView('student');
+                else alert("아이디와 비밀번호를 입력하세요.");
+            };
 
-  // --- 학생 퀴즈 페이지 컴포넌트 ---
-  const QuizPage = () => {
-    const [currentIdx, setCurrentIdx] = useState(0);
-    const [score, setScore] = useState(0);
+            const saveSettings = async () => {
+                setLoading(true);
+                await setDoc(doc(db, "config", "settings"), settings);
+                setLoading(false);
+                alert("설정이 저장되었습니다!");
+            };
 
-    return (
-      <div className="p-6">
-        <div className="mb-4 flex justify-between">
-          <span>문제 {currentIdx + 1} / {settings.qCount}</span>
-          <span className="font-bold text-blue-600">{settings.academyName}</span>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-lg h-64 flex items-center justify-center text-xl font-bold border-2 border-blue-50">
-          {/* AI가 생성한 문제가 여기에 렌더링됨 */}
-          [질문 예시] 다음 문장의 빈칸을 채우시오...
-        </div>
-        {/* 선택지 및 제출 로직 */}
-      </div>
-    );
-  };
+            // --- 관리자 화면 ---
+            if (view === 'admin') return (
+                <div class="max-w-md mx-auto p-6 space-y-6">
+                    <header class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
+                        <h1 class="font-bold text-indigo-600">관리자 모드</h1>
+                        <button onClick={() => setView('login')} class="text-xs text-gray-400">로그아웃</button>
+                    </header>
+                    <div class="bg-white p-6 rounded-2xl shadow-lg space-y-4 font-bold">
+                        <div>
+                            <label class="text-xs text-gray-400">학원 이름</label>
+                            <input class="w-full border-b-2 p-2 outline-none focus:border-indigo-500" value={settings.academyName} onChange={e => setSettings({...settings, academyName: e.target.value})} />
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="flex-1">
+                                <label class="text-xs text-gray-400">커트라인 (점)</label>
+                                <input type="number" class="w-full border-b-2 p-2 outline-none" value={settings.passScore} onChange={e => setSettings({...settings, passScore: e.target.value})} />
+                            </div>
+                            <div class="flex-1">
+                                <label class="text-xs text-gray-400">문제 수</label>
+                                <input type="number" class="w-full border-b-2 p-2 outline-none" value={settings.qCount} onChange={e => setSettings({...settings, qCount: e.target.value})} />
+                            </div>
+                        </div>
+                        <button onClick={saveSettings} class="w-full bg-indigo-600 text-white p-4 rounded-xl shadow-lg">{loading ? '저장중...' : '설정 저장하기'}</button>
+                    </div>
+                </div>
+            );
 
-  return (
-    <div className="max-w-md mx-auto min-h-screen bg-slate-50 font-pretendard">
-      {view === 'login' && (
-        <div className="p-10 space-y-8">
-          <h1 className="text-3xl font-black text-center text-blue-800">{settings.academyName || "학원이름을 설정하세요"}</h1>
-          <div className="space-y-4">
-            <input className="w-full p-4 border rounded-2xl" placeholder="아이디" onChange={e => setLoginInfo({...loginInfo, id: e.target.value})} />
-            <input className="w-full p-4 border rounded-2xl" type="password" placeholder="비밀번호" onChange={e => setLoginInfo({...loginInfo, pw: e.target.value})} />
-            <button onClick={handleLogin} className="w-full bg-blue-600 text-white p-4 rounded-2xl font-bold">시스템 로그인</button>
-          </div>
-        </div>
-      )}
-      {view === 'admin_main' && <AdminPage />}
-      {view === 'quiz' && <QuizPage />}
-    </div>
-  );
-};
+            // --- 로그인 화면 ---
+            return (
+                <div class="max-w-md mx-auto min-h-screen flex flex-col justify-center p-8 space-y-10">
+                    <h1 class="text-4xl font-black text-center text-slate-800 leading-tight">
+                        {settings.academyName}<br/><span class="text-indigo-600 text-2xl font-bold italic tracking-tighter">LE SYSTEM</span>
+                    </h1>
+                    <div class="space-y-4 bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+                        <input class="w-full p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-400 transition" placeholder="아이디" onChange={e => setLogin({...login, id: e.target.value})} />
+                        <input class="w-full p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-400 transition" type="password" placeholder="비밀번호" onChange={e => setLogin({...login, pw: e.target.value})} />
+                        <button onClick={handleLogin} class="w-full bg-indigo-600 text-white p-4 rounded-2xl font-bold shadow-indigo-200 shadow-xl active:scale-95 transition">시스템 접속</button>
+                    </div>
+                    <p class="text-center text-[10px] text-slate-400 uppercase tracking-widest">Powered by LE Academy Logic</p>
+                </div>
+            );
+        };
 
-export default LESystem;
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<LESystem />);
+    </script>
+</body>
+</html>
